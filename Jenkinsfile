@@ -110,10 +110,10 @@ spec:
                 sh 'hadolint */Dockerfile'
             }
         }
-        stage('Integration Tests') {
-            git branch: "develop", url: 'https://github.com/gchq/Palisade-integration-tests.git'
-            build job: "Palisade-integration-tests/develop"
-        }
+//        stage('Integration Tests') {
+//            git branch: "develop", url: 'https://github.com/gchq/Palisade-integration-tests.git'
+//            build job: "Palisade-integration-tests/develop"
+//        }
         stage('Maven deploy') {
             x = env.BRANCH_NAME
 
@@ -128,7 +128,8 @@ spec:
             container('maven') {
                 configFileProvider([configFile(fileId: "${env.CONFIG_FILE}", variable: 'MAVEN_SETTINGS')]) {
                     if (("${env.BRANCH_NAME}" == "develop") ||
-                            ("${env.BRANCH_NAME}" == "master")) {
+                            ("${env.BRANCH_NAME}" == "master") ||
+                            ("${env.BRANCH_NAME}" == "PAL-XXX-remove-int-tests")) {
                         sh 'palisade-login'
                         //now extract the public IP addresses that this will be open on
                         sh 'extract-addresses'
