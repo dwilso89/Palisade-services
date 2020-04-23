@@ -21,7 +21,7 @@ kind: Pod
 spec:
   containers:
   - name: docker-cmds
-    image: jnlp-did:jdk11
+    image: 779921734503.dkr.ecr.eu-west-1.amazonaws.com/jnlp-did:INFRA
     imagePullPolicy: IfNotPresent
     command:
     - sleep
@@ -52,7 +52,7 @@ spec:
         value: ""
 
   - name: maven
-    image: jnlp-slave-palisade:jdk11
+    image: 779921734503.dkr.ecr.eu-west-1.amazonaws.com/docker-jnlp-slave-image:INFRA
     imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
@@ -135,7 +135,8 @@ spec:
             container('maven') {
                 configFileProvider([configFile(fileId: "${env.CONFIG_FILE}", variable: 'MAVEN_SETTINGS')]) {
                     if (("${env.BRANCH_NAME}" == "develop") ||
-                            ("${env.BRANCH_NAME}" == "master")) {
+                            ("${env.BRANCH_NAME}" == "master") ||
+                            ("${env.BRANCH_NAME}" == "PAL-324-new-infrastructure")) {
                         sh 'palisade-login'
                         //now extract the public IP addresses that this will be open on
                         sh 'extract-addresses'
