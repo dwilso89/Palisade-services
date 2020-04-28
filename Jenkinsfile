@@ -19,6 +19,18 @@ podTemplate(yaml: '''
 apiVersion: v1
 kind: Pod
 spec:
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 1
+        preference:
+          matchExpressions:
+          - key: palisade-node-name
+            operator: In
+            values: 
+            - node1
+            - node2
+            - node3
   containers:
   - name: docker-cmds
     image: 779921734503.dkr.ecr.eu-west-1.amazonaws.com/jnlp-did:INFRA
@@ -30,27 +42,14 @@ spec:
     env:
       - name: DOCKER_HOST
         value: tcp://localhost:2375
+        
   - name: hadolint
     image: hadolint/hadolint:latest-debian@sha256:15016b18964c5e623bd2677661a0be3c00ffa85ef3129b11acf814000872861e
     imagePullPolicy: Always
     command:
         - cat
     tty: true
-  - name: docker-daemon
-    image: docker:19.03.1-dind
-    securityContext:
-      privileged: true
-    resources:
-      requests:
-        cpu: 20m
-        memory: 512Mi
-    volumeMounts:
-      - name: docker-graph-storage
-        mountPath: /var/lib/docker
-    env:
-      - name: DOCKER_TLS_CERTDIR
-        value: ""
-
+    
   - name: maven
     image: 779921734503.dkr.ecr.eu-west-1.amazonaws.com/docker-jnlp-slave-image:INFRA
     imagePullPolicy: IfNotPresent
@@ -76,43 +75,26 @@ spec:
             echo sh(script: 'env|sort', returnStdout: true)
         }
         stage('Unit Tests, Checkstyle and Install') {
-            x = env.BRANCH_NAME
-            if (x.substring(0, 2) == "PR") {
-                y = x.substring(3)
-                git url: 'https://github.com/gchq/Palisade-services.git'
-                sh "git fetch origin pull/${y}/head:${x}"
-                sh "git checkout ${x}"
-            } else { //just a normal branch
-                git branch: "${env.BRANCH_NAME}", url: 'https://github.com/gchq/Palisade-services.git'
-            }
-            container('docker-cmds') {
-                configFileProvider([configFile(fileId: "${env.CONFIG_FILE}", variable: 'MAVEN_SETTINGS')]) {
-                    sh 'mvn -s $MAVEN_SETTINGS install'
-                }
-            }
-        }
-        stage('SonarQube analysis') {
-            container('docker-cmds') {
-                withCredentials([string(credentialsId: '3dc8e0fb-23de-471d-8009-ed1d5890333a', variable: 'SONARQUBE_WEBHOOK'),
-                                 string(credentialsId: 'b01b7c11-ccdf-4ac5-b022-28c9b861379a', variable: 'KEYSTORE_PASS'),
-                                 file(credentialsId: '91d1a511-491e-4fac-9da5-a61b7933f4f6', variable: 'KEYSTORE')]) {
+            //Repositories must get built in their own directory, they can be 'cd' back into later on
+            dir ('Palisade-services') {
+                git url: 'https://github.com/gchq/Palisade-integration-tests.git'
+                sh "git fetch origin develop"
+                // CHANGE_BRANCH will be null unless you are building a PR, in which case it'll become your original branch name, i.e pal-xxx
+                // If CHANGE_BRANCH is null, git will then try to build BRANCH_NAME which is pal-xxx, and if the branch doesnt exist it will default back to develop
+                sh "git checkout ${env.CHANGE_BRANCH} || git checkout ${env.BRANCH_NAME} || git checkout develop"
+                container('docker-cmds') {
                     configFileProvider([configFile(fileId: "${env.CONFIG_FILE}", variable: 'MAVEN_SETTINGS')]) {
-                        withSonarQubeEnv(installationName: 'sonar') {
-                            sh 'mvn -s $MAVEN_SETTINGS org.sonarsource.scanner.maven:sonar-maven-plugin:3.7.0.1746:sonar -Dsonar.projectKey="Palisade-Services/${BRANCH_NAME}" -Dsonar.projectName="Palisade-Services/${BRANCH_NAME}" -Dsonar.webhooks.project=$SONARQUBE_WEBHOOK -Djavax.net.ssl.trustStore=$KEYSTORE -Djavax.net.ssl.trustStorePassword=$KEYSTORE_PASS'
-                        }
+                        sh 'mvn -s $MAVEN_SETTINGS install'
                     }
                 }
-            }
-        }
-        stage('Hadolinting') {
-            container('hadolint') {
-                sh 'hadolint */Dockerfile'
             }
         }
         stage('Integration Tests') {
             dir ('Palisade-integration-tests') {
             git url: 'https://github.com/gchq/Palisade-integration-tests.git'
             sh "git fetch origin develop"
+            // CHANGE_BRANCH will be null unless you are building a PR, in which case it'll become your original branch name, i.e pal-xxx
+            // If CHANGE_BRANCH is null, git will then try to build BRANCH_NAME which is pal-xxx, and if the branch doesnt exist it will default back to develop
             sh "git checkout ${env.CHANGE_BRANCH} || git checkout ${env.BRANCH_NAME} || git checkout develop"
                 container('docker-cmds') {
                     configFileProvider([configFile(fileId: "${env.CONFIG_FILE}", variable: 'MAVEN_SETTINGS')]) {
@@ -121,29 +103,48 @@ spec:
                 }
             }
         }
-        stage('Maven deploy') {
-            x = env.BRANCH_NAME
-
-            if (x.substring(0, 2) == "PR") {
-                y = x.substring(3)
-                git url: 'https://github.com/gchq/Palisade-services.git'
-                sh "git fetch origin pull/${y}/head:${x}"
-                sh "git checkout ${x}"
-            } else { //just a normal branch
-                git branch: "${env.BRANCH_NAME}", url: 'https://github.com/gchq/Palisade-services.git'
+        stage('SonarQube analysis') {
+            dir ('Palisade-services') {
+                container('docker-cmds') {
+                    withCredentials([string(credentialsId: "${env.SQ_WEB_HOOK}", variable: 'SONARQUBE_WEBHOOK'),
+                                     string(credentialsId: "${env.SQ_KEY_STORE_PASS}", variable: 'KEYSTORE_PASS'),
+                                     file(credentialsId: "${env.SQ_KEY_STORE}", variable: 'KEYSTORE')]) {
+                        configFileProvider([configFile(fileId: "${env.CONFIG_FILE}", variable: 'MAVEN_SETTINGS')]) {
+                            withSonarQubeEnv(installationName: 'sonar') {
+                                sh 'mvn -s $MAVEN_SETTINGS org.sonarsource.scanner.maven:sonar-maven-plugin:3.7.0.1746:sonar -Dsonar.projectKey="Palisade-Services-${BRANCH_NAME}" -Dsonar.projectName="Palisade-Services-${BRANCH_NAME}" -Dsonar.webhooks.project=$SONARQUBE_WEBHOOK -Djavax.net.ssl.trustStore=$KEYSTORE -Djavax.net.ssl.trustStorePassword=$KEYSTORE_PASS'
+                            }
+                        }
+                    }
+                }
             }
-            container('maven') {
-                configFileProvider([configFile(fileId: "${env.CONFIG_FILE}", variable: 'MAVEN_SETTINGS')]) {
-                    if (("${env.BRANCH_NAME}" == "develop") ||
-                            ("${env.BRANCH_NAME}" == "master") ||
-                            ("${env.BRANCH_NAME}" == "PAL-324-new-infrastructure")) {
-                        sh 'palisade-login'
-                        //now extract the public IP addresses that this will be open on
-                        sh 'extract-addresses'
-                        sh 'mvn -s $MAVEN_SETTINGS deploy -Dmaven.test.skip=true'
-                        sh 'helm upgrade --install palisade . --set traefik.install=true,dashboard.install=true   --set global.repository=${ECR_REGISTRY}  --set global.hostname=${EGRESS_ELB} --set global.localMount.enabled=false,global.localMount.volumeHandle=${VOLUME_HANDLE} --namespace dev'
-                    } else {
-                        sh "echo - no deploy"
+        }
+        stage('Hadolinting') {
+            dir ('Palisade-services') {
+                container('hadolint') {
+                    sh 'hadolint */Dockerfile'
+                }
+            }
+        }
+
+        stage('Maven deploy') {
+            dir ('Palisade-services') {
+                git url: 'https://github.com/gchq/Palisade-integration-tests.git'
+                sh "git fetch origin develop"
+                // CHANGE_BRANCH will be null unless you are building a PR, in which case it'll become your original branch name, i.e pal-xxx
+                // If CHANGE_BRANCH is null, git will then try to build BRANCH_NAME which is pal-xxx, and if the branch doesnt exist it will default back to develop
+                sh "git checkout ${env.CHANGE_BRANCH} || git checkout ${env.BRANCH_NAME} || git checkout develop"
+                container('maven') {
+                    configFileProvider([configFile(fileId: "${env.CONFIG_FILE}", variable: 'MAVEN_SETTINGS')]) {
+                        if (("${env.BRANCH_NAME}" == "develop") ||
+                                ("${env.BRANCH_NAME}" == "master")) {
+                            sh 'palisade-login'
+                            //now extract the public IP addresses that this will be open on
+                            sh 'extract-addresses'
+                            sh 'mvn -s $MAVEN_SETTINGS deploy -Dmaven.test.skip=true'
+                            sh 'helm upgrade --install palisade . --set traefik.install=true,dashboard.install=true   --set global.repository=${ECR_REGISTRY}  --set global.hostname=${EGRESS_ELB} --set global.localMount.enabled=false,global.localMount.volumeHandle=${VOLUME_HANDLE} --namespace dev'
+                        } else {
+                            sh "echo - no deploy"
+                        }
                     }
                 }
             }
