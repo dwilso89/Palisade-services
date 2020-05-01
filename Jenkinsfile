@@ -18,6 +18,8 @@
 podTemplate(yaml: '''
 apiVersion: v1
 kind: Pod
+metadata:
+    name: dind
 spec:
   affinity:
     nodeAffinity:
@@ -33,12 +35,16 @@ spec:
             - node3
   containers:
   - name: docker-cmds
-    image: 779921734503.dkr.ecr.eu-west-1.amazonaws.com/jnlp-did:INFRA
+    image: docker:1.12.6
     imagePullPolicy: IfNotPresent
     command:
     - sleep
     args:
     - 99d
+    resources:
+        requests:
+            cpu: 10m
+            memory: 256Mi    
     env:
       - name: DOCKER_HOST
         value: tcp://localhost:2375
@@ -77,7 +83,7 @@ spec:
         stage('Unit Tests, Checkstyle and Install') {
             //Repositories must get built in their own directory, they can be 'cd' back into later on
             dir ('Palisade-services') {
-                git url: 'https://github.com/gchq/Palisade-integration-tests.git'
+                git url: 'https://github.com/gchq/Palisade-services.git'
                 sh "git fetch origin develop"
                 // CHANGE_BRANCH will be null unless you are building a PR, in which case it'll become your original branch name, i.e pal-xxx
                 // If CHANGE_BRANCH is null, git will then try to build BRANCH_NAME which is pal-xxx, and if the branch doesnt exist it will default back to develop
