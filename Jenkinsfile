@@ -18,6 +18,8 @@
 podTemplate(yaml: '''
 apiVersion: v1
 kind: Pod
+metadata: 
+    name: dind 
 spec:
   containers:
   - name: docker-cmds
@@ -32,15 +34,8 @@ spec:
         value: tcp://localhost:2375
         
         
-  - name: hadolint
-    image: hadolint/hadolint:latest-debian@sha256:15016b18964c5e623bd2677661a0be3c00ffa85ef3129b11acf814000872861e
-    imagePullPolicy: Always
-    command:
-        - cat
-    tty: true
     
-    
-  - name: docker-daemon
+  - name: dind-daemon
     image: docker:19.03.1-dind
     securityContext:
       privileged: true
