@@ -41,6 +41,8 @@ spec:
     
   - name: dind-daemon
     image: docker:19.03.1-dind
+    command:
+    - docker:dind
     resources:
       requests:
         cpu: 20m
@@ -50,8 +52,6 @@ spec:
     volumeMounts:
       - name: docker-graph-storage
         mountPath: /var/lib/docker
-    env:
-      DOCKER_HOST: tcp://docker:2375
 
   volumes:
     - name: docker-graph-storage
