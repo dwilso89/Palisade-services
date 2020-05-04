@@ -29,7 +29,7 @@ spec:
     tty: true  
     
   - name: docker-cmds
-    image: 779921734503.dkr.ecr.eu-west-1.amazonaws.com/jnlp-did-new-infra:jdk11
+    image: 779921734503.dkr.ecr.eu-west-1.amazonaws.com/jnlp-did:INFRA
     imagePullPolicy: IfNotPresent
     resources: 
       requests: 
