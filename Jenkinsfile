@@ -22,8 +22,15 @@ metadata:
     name: dind 
 spec:
   containers:
+  - name: hadolint
+    image: hadolint/hadolint:latest-debian@sha256:15016b18964c5e623bd2677661a0be3c00ffa85ef3129b11acf814000872861e
+    imagePullPolicy: Always
+    command:
+        - cat
+    tty: true  
+    
   - name: docker-cmds
-    image: docker:1.12.6
+    image: 779921734503.dkr.ecr.eu-west-1.amazonaws.com/jnlp-did-new-infra:jdk11
     imagePullPolicy: IfNotPresent
     resources: 
       requests: 
@@ -56,20 +63,49 @@ spec:
       emptyDir: {}
 ''') {
     node(POD_LABEL) {
+        def GIT_BRANCH_NAME
+
         stage('Bootstrap') {
-            echo sh(script: 'env|sort', returnStdout: true)
+            if (env.CHANGE_BRANCH) {
+                GIT_BRANCH_NAME=env.CHANGE_BRANCH
+            } else {
+                GIT_BRANCH_NAME=env.BRANCH_NAME
+            }
+            echo sh(script: 'env | sort', returnStdout: true)
         }
-        stage('Unit Tests, Checkstyle and Install') {
-            //Repositories must get built in their own directory, they can be 'cd' back into later on
+
+        stage('Prerequisites') {
+            // If this branch name exists in the repo for a mvn dependency
+            // Install that version, rather than pulling from nexus
+            dir ('Palisade-common') {
+                git url: 'https://github.com/gchq/Palisade-common.git'
+                if (sh(script: "git checkout ${GIT_BRANCH_NAME}", returnStatus: true) == 0) {
+                    container('docker-cmds') {
+                        configFileProvider([configFile(fileId: "${env.CONFIG_FILE}", variable: 'MAVEN_SETTINGS')]) {
+                            sh 'mvn -s $MAVEN_SETTINGS install -P quick'
+                        }
+                    }
+                }
+            }
+            dir ('Palisade-readers') {
+                git url: 'https://github.com/gchq/Palisade-readers.git'
+                if (sh(script: "git checkout ${GIT_BRANCH_NAME}", returnStatus: true) == 0) {
+                    container('docker-cmds') {
+                        configFileProvider([configFile(fileId: "${env.CONFIG_FILE}", variable: 'MAVEN_SETTINGS')]) {
+                            sh 'mvn -s $MAVEN_SETTINGS install -P quick'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Install, Unit Tests, Checkstyle') {
             dir ('Palisade-services') {
                 git url: 'https://github.com/gchq/Palisade-services.git'
-                sh "git fetch origin develop"
-                // CHANGE_BRANCH will be null unless you are building a PR, in which case it'll become your original branch name, i.e pal-xxx
-                // If CHANGE_BRANCH is null, git will then try to build BRANCH_NAME which is pal-xxx, and if the branch doesnt exist it will default back to develop
-                sh "git checkout ${env.CHANGE_BRANCH} || git checkout ${env.BRANCH_NAME} || git checkout develop"
+                sh "git checkout ${GIT_BRANCH_NAME}"
                 container('docker-cmds') {
                     configFileProvider([configFile(fileId: "${env.CONFIG_FILE}", variable: 'MAVEN_SETTINGS')]) {
-                        sh 'docker images'
+                        sh 'mvn -s $MAVEN_SETTINGS install'
                     }
                 }
             }
