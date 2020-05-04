@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 podTemplate(yaml: '''
 apiVersion: v1
 kind: Pod
@@ -109,6 +108,7 @@ spec:
                     }
                 }
             }
+            echo sh(script: 'env | sort', returnStdout: true)
         }
     }
 }
