@@ -20,7 +20,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.aop.interceptor.AsyncUncaughtExceptionHandler;
-import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -45,15 +44,12 @@ import uk.gov.gchq.palisade.service.palisade.service.ResultAggregationService;
 import uk.gov.gchq.palisade.service.palisade.service.SimplePalisadeService;
 import uk.gov.gchq.palisade.service.palisade.service.UserService;
 import uk.gov.gchq.palisade.service.palisade.web.AuditClient;
-import uk.gov.gchq.palisade.service.palisade.web.PalisadeHealthIndicator;
 import uk.gov.gchq.palisade.service.palisade.web.PolicyClient;
 import uk.gov.gchq.palisade.service.palisade.web.ResourceClient;
 import uk.gov.gchq.palisade.service.palisade.web.UserClient;
 
-import java.net.URI;
 import java.util.Optional;
 import java.util.concurrent.Executor;
-import java.util.function.Supplier;
 
 /**
  * Bean configuration and dependency injection graph.
@@ -62,12 +58,6 @@ import java.util.function.Supplier;
 public class ApplicationConfiguration implements AsyncConfigurer {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ApplicationConfiguration.class);
-
-    @Bean
-    @ConfigurationProperties(prefix = "web")
-    public ClientConfiguration clientConfiguration() {
-        return new ClientConfiguration();
-    }
 
     @Bean(name = "jpa-persistence")
     public JpaPersistenceLayer persistenceLayer(final DataRequestRepository dataRequestRepository, final LeafResourceRulesRepository leafResourceRulesRepository, final Executor executor) {
@@ -111,40 +101,23 @@ public class ApplicationConfiguration implements AsyncConfigurer {
     }
 
     @Bean
-    public UserService userService(final UserClient userClient, final ClientConfiguration clientConfig) {
-        Supplier<URI> userUriSupplier = () -> clientConfig
-                .getClientUri("user-service")
-                .orElseThrow(() -> new RuntimeException("Cannot find any instance of 'user-service' - see 'web.client' properties or discovery service registration"));
-        return new UserService(userClient, userUriSupplier, getAsyncExecutor());
+    public UserService userService(final UserClient userClient) {
+        return new UserService(userClient, getAsyncExecutor());
     }
 
     @Bean
-    public AuditService auditService(final AuditClient auditClient, final ClientConfiguration clientConfig) {
-        Supplier<URI> auditUriSupplier = () -> clientConfig
-                .getClientUri("audit-service")
-                .orElseThrow(() -> new RuntimeException("Cannot find any instance of 'audit-service' - see 'web.client' properties or discovery service registration"));
-        return new AuditService(auditClient, auditUriSupplier, getAsyncExecutor());
+    public AuditService auditService(final AuditClient auditClient) {
+        return new AuditService(auditClient);
     }
 
     @Bean
-    public ResourceService resourceService(final ResourceClient resourceClient, final ClientConfiguration clientConfig) {
-        Supplier<URI> resourceUriSupplier = () -> clientConfig
-                .getClientUri("resource-service")
-                .orElseThrow(() -> new RuntimeException("Cannot find any instance of 'resource-service' - see 'web.client' properties or discovery service registration"));
-        return new ResourceService(resourceClient, resourceUriSupplier, getAsyncExecutor());
+    public ResourceService resourceService(final ResourceClient resourceClient) {
+        return new ResourceService(resourceClient, getAsyncExecutor());
     }
 
     @Bean
-    public PolicyService policyService(final PolicyClient policyClient, final ClientConfiguration clientConfig) {
-        Supplier<URI> policyUriSupplier = () -> clientConfig
-                .getClientUri("policy-service")
-                .orElseThrow(() -> new RuntimeException("Cannot find any instance of 'policy-service' - see 'web.client' properties or discovery service registration"));
-        return new PolicyService(policyClient, policyUriSupplier, getAsyncExecutor());
-    }
-
-    @Bean
-    public PalisadeHealthIndicator palisadeHealthIndicator(final AuditService auditService, final PolicyService policyService, final ResourceService resourceService, final UserService userService) {
-        return new PalisadeHealthIndicator(auditService, policyService, resourceService, userService);
+    public PolicyService policyService(final PolicyClient policyClient) {
+        return new PolicyService(policyClient, getAsyncExecutor());
     }
 
     @Bean

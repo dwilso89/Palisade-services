@@ -15,7 +15,6 @@
  */
 package uk.gov.gchq.palisade.service.palisade.service;
 
-import feign.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,23 +24,19 @@ import uk.gov.gchq.palisade.service.ConnectionDetail;
 import uk.gov.gchq.palisade.service.Service;
 import uk.gov.gchq.palisade.service.palisade.web.ResourceClient;
 
-import java.net.URI;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
-import java.util.function.Supplier;
 
 public class ResourceService implements Service {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ResourceService.class);
     private final ResourceClient client;
-    private final Supplier<URI> uriSupplier;
     private final Executor executor;
 
-    public ResourceService(final ResourceClient resourceClient, final Supplier<URI> uriSupplier, final Executor executor) {
+    public ResourceService(final ResourceClient resourceClient, final Executor executor) {
         this.client = resourceClient;
-        this.uriSupplier = uriSupplier;
         this.executor = executor;
     }
 
@@ -50,11 +45,8 @@ public class ResourceService implements Service {
 
         CompletionStage<Map<LeafResource, ConnectionDetail>> resources;
         try {
-            LOGGER.info("Resource request: {}", request);
             resources = CompletableFuture.supplyAsync(() -> {
-                URI clientUri = this.uriSupplier.get();
-                LOGGER.debug("Using client uri: {}", clientUri);
-                Map<LeafResource, ConnectionDetail> response = client.getResourcesById(clientUri, request);
+                Map<LeafResource, ConnectionDetail> response = client.getResourcesById(request);
                 LOGGER.info("Got resources: {}", response);
                 return response;
             }, this.executor);
@@ -66,14 +58,4 @@ public class ResourceService implements Service {
         return resources.toCompletableFuture();
     }
 
-    public Response getHealth() {
-        try {
-            URI clientUri = this.uriSupplier.get();
-            LOGGER.debug("Using client uri: {}", clientUri);
-            return this.client.getHealth(clientUri);
-        } catch (Exception ex) {
-            LOGGER.error("Failed to get health: {}", ex.getMessage());
-            throw new RuntimeException(ex); //rethrow the exception
-        }
-    }
 }

@@ -29,7 +29,7 @@ import java.net.URI;
 public interface AuditClient {
 
     @PostMapping(path = "/audit", consumes = "application/json", produces = "application/json")
-    Boolean audit(final URI url, @RequestBody final AuditRequest request);
+    Boolean audit(@RequestBody final AuditRequest request);
 
     @GetMapping(path = "/actuator/health", produces = "application/json")
     Response getHealth(final URI url);

@@ -30,7 +30,7 @@ import java.net.URI;
 public interface UserClient {
 
     @PostMapping(path = "/getUser", consumes = "application/json", produces = "application/json")
-    User getUser(final URI url, @RequestBody final GetUserRequest request);
+    User getUser(@RequestBody final GetUserRequest request);
 
     @GetMapping(path = "/actuator/health", produces = "application/json")
     Response getHealth(final URI url);

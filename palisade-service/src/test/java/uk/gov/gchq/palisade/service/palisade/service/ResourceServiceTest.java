@@ -24,13 +24,19 @@ import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.MethodRule;
 import org.junit.runner.RunWith;
+import org.junit.runners.model.FrameworkMethod;
+import org.junit.runners.model.Statement;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
+
 import org.slf4j.LoggerFactory;
 
 import uk.gov.gchq.palisade.RequestId;
+
 import uk.gov.gchq.palisade.resource.LeafResource;
 import uk.gov.gchq.palisade.resource.impl.FileResource;
 import uk.gov.gchq.palisade.resource.request.GetResourcesByIdRequest;
@@ -38,7 +44,12 @@ import uk.gov.gchq.palisade.service.ConnectionDetail;
 import uk.gov.gchq.palisade.service.SimpleConnectionDetail;
 import uk.gov.gchq.palisade.service.palisade.web.ResourceClient;
 
-import java.net.URI;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Inherited;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,7 +57,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
@@ -69,14 +79,7 @@ public class ResourceServiceTest {
         appender.start();
         logger.addAppender(appender);
 
-        Supplier<URI> uriSupplier = () -> {
-            try {
-                return new URI("audit-service");
-            } catch (Exception e) {
-                return null;
-            }
-        };
-        resourceService = new ResourceService(resourceClient, uriSupplier, executor);
+        resourceService = new ResourceService(resourceClient, executor);
         FileResource resource = new FileResource().id("/path/to/bob_file.txt");
         ConnectionDetail connectionDetail = new SimpleConnectionDetail().uri("data-service");
         resources.put(resource, connectionDetail);
@@ -88,6 +91,9 @@ public class ResourceServiceTest {
         appender.stop();
     }
 
+    @Rule
+    public LogLevelRule logLevelRule = new LogLevelRule();
+
     private List<String> getMessages(final Predicate<ILoggingEvent> predicate) {
         return appender.list.stream()
                 .filter(predicate)
@@ -96,18 +102,19 @@ public class ResourceServiceTest {
     }
 
     @Test
-    public void infoOnGetResourcesRequest() {
+    @LogLevel(packageToLevel = { "uk.gov.gchq.palisade.service.palisade.service.ResourceService=DEBUG" })
+    public void infoOnGetResourcesRequestTest() {
         // Given
         GetResourcesByIdRequest request = new GetResourcesByIdRequest().resourceId("/path/to/bob_file.txt");
         request.setOriginalRequestId(new RequestId().id("Original ID"));
         Map<LeafResource, ConnectionDetail> response = Mockito.mock(Map.class);
-        Mockito.when(resourceClient.getResourcesById(Mockito.any(), Mockito.eq(request))).thenReturn(response);
+        Mockito.when(resourceClient.getResourcesById(Mockito.eq(request))).thenReturn(response);
 
         // When
         resourceService.getResourcesById(request);
 
         // Then
-        List<String> infoMessages = getMessages(event -> event.getLevel() == Level.INFO);
+        List<String> infoMessages = getMessages(event -> event.getLevel() == Level.DEBUG);
 
         MatcherAssert.assertThat(infoMessages, Matchers.hasItems(
                 Matchers.containsString(request.getOriginalRequestId().getId()),
@@ -121,7 +128,7 @@ public class ResourceServiceTest {
     @Test
     public void getResourceByIdReturnsMappedResources() {
         //Given
-        when(resourceClient.getResourcesById(Mockito.any(), Mockito.any(GetResourcesByIdRequest.class))).thenReturn(resources);
+        when(resourceClient.getResourcesById(Mockito.any(GetResourcesByIdRequest.class))).thenReturn(resources);
 
         //When
         GetResourcesByIdRequest request = new GetResourcesByIdRequest().resourceId("/path/to/bob_file.txt");
@@ -130,6 +137,96 @@ public class ResourceServiceTest {
 
         //Then
         assertEquals(resources, actual.join());
+    }
+
+    /**
+     * a Junit Rule that check for LogLevel annotation on methods and activates the configured log level per package. After
+     * the test was executed, restores the previous log level.
+     */
+    public class LogLevelRule implements MethodRule {
+
+        @Override
+        public Statement apply(Statement base, FrameworkMethod method, Object target) {
+
+            return new Statement() {
+                @Override
+                public void evaluate() throws Throwable {
+
+                    // activate log level desired, remember what they were
+                    Map<String, Level> existingPackageLogLevel = new HashMap<>();
+                    LogLevel logLevelAnnotation = method.getAnnotation(LogLevel.class);
+                    if (logLevelAnnotation != null) {
+                        activate(logLevelAnnotation.packageToLevel(), existingPackageLogLevel);
+                    }
+
+                    // run the test
+                    Throwable testFailure = evaluateSafely(base);
+
+                    // revert the log level back to what it was
+                    if (!existingPackageLogLevel.isEmpty()) {
+                        deactivate(existingPackageLogLevel);
+                    }
+
+                    if (testFailure != null) {
+                        throw testFailure;
+                    }
+                }
+
+                /**
+                 * execute the test safely so that if it fails, we can still revert the log level
+                 */
+                private Throwable evaluateSafely(Statement base) {
+                    try {
+                        base.evaluate();
+                        return null;
+                    } catch (Throwable throwable) {
+                        return throwable;
+                    }
+                }
+            };
+        }
+
+        /**
+         * activates the log level per package and remember the current setup
+         *
+         * @param packageToLevel
+         *            the configuration of the annotation
+         * @param existingPackageLogLevel
+         *            where to store the current information
+         */
+        protected void activate(String[] packageToLevel, Map<String, Level> existingPackageLogLevel) {
+            for (String pkgToLevel : packageToLevel) {
+                String[] split = pkgToLevel.split("=");
+                String pkg = split[0];
+                String levelString = split[1];
+                Logger logger = (Logger) LoggerFactory.getLogger(pkg);
+                Level level = logger.getEffectiveLevel();
+                existingPackageLogLevel.put(pkg, level);
+                logger.setLevel(Level.toLevel(levelString));
+            }
+        }
+
+        /**
+         * resets the log level of the changes packages back to what it was before
+         *
+         * @param existingPackageLogLevel
+         */
+        protected void deactivate(Map<String, Level> existingPackageLogLevel) {
+            for (Map.Entry<String, Level> e : existingPackageLogLevel.entrySet()) {
+                ((Logger) LoggerFactory.getLogger(e.getKey())).setLevel(e.getValue());
+            }
+        }
+
+    }
+
+    /**
+     * marks a method to use a different log level for the execution phase
+     */
+    @Target(ElementType.METHOD)
+    @Retention(RetentionPolicy.RUNTIME)
+    @Inherited
+    public @interface LogLevel {
+        String[] packageToLevel();
     }
 
 }

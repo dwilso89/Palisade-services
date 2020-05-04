@@ -40,13 +40,11 @@ import uk.gov.gchq.palisade.service.palisade.request.RegisterDataRequest;
 import uk.gov.gchq.palisade.service.palisade.web.AuditClient;
 import uk.gov.gchq.palisade.service.request.DataRequestResponse;
 
-import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.function.Supplier;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -72,14 +70,7 @@ public class ResultAggregationServiceTest {
     @Before
     public void setup() {
         executor = Executors.newSingleThreadExecutor();
-        Supplier<URI> uriSupplier = () -> {
-            try {
-                return new URI("audit-service");
-            } catch (Exception e) {
-                return null;
-            }
-        };
-        auditService = new AuditService(auditClient, uriSupplier, executor);
+        auditService = new AuditService(auditClient);
         service = new ResultAggregationService(auditService, persistenceLayer);
         request = new RegisterDataRequest().userId(new UserId().id("Bob")).context(new Context().purpose("Testing")).resourceId("/path/to/new/bob_file.txt");
         request.originalRequestId(originalRequestId);
@@ -105,7 +96,7 @@ public class ResultAggregationServiceTest {
     public void aggregateDataRequestResultsTest() throws Exception {
 
         //Given
-        when(auditClient.audit(any(), any(AuditRequest.class))).thenReturn(true);
+        when(auditClient.audit(any(AuditRequest.class))).thenReturn(true);
 
         //When
         DataRequestResponse actual = service.aggregateDataRequestResults(request, user, resources, rules, requestId, originalRequestId).toCompletableFuture().get();
@@ -118,7 +109,7 @@ public class ResultAggregationServiceTest {
     public void aggregateDataRequestResultsWithErrorTest() throws Exception {
 
         //Given
-        when(auditClient.audit(any(), any(AuditRequest.class))).thenReturn(true);
+        when(auditClient.audit(any(AuditRequest.class))).thenReturn(true);
 
         //When
         DataRequestResponse actual = service.aggregateDataRequestResults(request, null, resources, rules, requestId, originalRequestId).toCompletableFuture().get();
