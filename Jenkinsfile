@@ -25,6 +25,10 @@ spec:
   - name: docker-cmds
     image: docker:1.12.6
     imagePullPolicy: IfNotPresent
+    resources: 
+      requests: 
+        cpu: 10m 
+        memory: 256Mi     
     command:
     - sleep
     args:
@@ -36,13 +40,13 @@ spec:
         
     
   - name: dind-daemon
-    image: docker:19.03.1-dind
-    securityContext:
-      privileged: true
+    image: docker:1.12.6-dind
     resources:
       requests:
         cpu: 20m
         memory: 512Mi
+    securityContext:
+      privileged: true
     volumeMounts:
       - name: docker-graph-storage
         mountPath: /var/lib/docker
