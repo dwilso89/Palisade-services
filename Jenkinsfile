@@ -50,6 +50,9 @@ spec:
     volumeMounts:
       - name: docker-graph-storage
         mountPath: /var/lib/docker
+    env:
+      - name: --network
+      value: host
 
   volumes:
     - name: docker-graph-storage
