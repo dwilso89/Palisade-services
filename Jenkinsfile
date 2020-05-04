@@ -40,7 +40,7 @@ spec:
         
     
   - name: dind-daemon
-    image: docker:1.12.6-dind
+    image: docker:19.03.1-dind
     resources:
       requests:
         cpu: 20m
