@@ -20,6 +20,18 @@ kind: Pod
 metadata: 
     name: dind 
 spec:
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 1
+        preference:
+          matchExpressions:
+          - key: palisade-node-name
+            operator: In
+            values: 
+            - node1
+            - node2
+            - node3
   containers:
   - name: hadolint
     image: hadolint/hadolint:latest-debian@sha256:15016b18964c5e623bd2677661a0be3c00ffa85ef3129b11acf814000872861e
@@ -109,6 +121,45 @@ spec:
                 }
             }
             echo sh(script: 'env | sort', returnStdout: true)
+        }
+
+        stage('Integration Tests') {
+            // Always run some sort of integration test
+            // If this branch name exists in integration-tests, use that
+            // Otherwise, default to integration-tests/develop
+            dir ('Palisade-integration-tests') {
+                git url: 'https://github.com/gchq/Palisade-integration-tests.git'
+                sh "git checkout ${GIT_BRANCH_NAME} || git checkout develop"
+                container('docker-cmds') {
+                    configFileProvider([configFile(fileId: "${env.CONFIG_FILE}", variable: 'MAVEN_SETTINGS')]) {
+                        sh 'mvn -s $MAVEN_SETTINGS install'
+                    }
+                }
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            dir ('Palisade-services') {
+                container('docker-cmds') {
+                    withCredentials([string(credentialsId: "${env.SQ_WEB_HOOK}", variable: 'SONARQUBE_WEBHOOK'),
+                                     string(credentialsId: "${env.SQ_KEY_STORE_PASS}", variable: 'KEYSTORE_PASS'),
+                                     file(credentialsId: "${env.SQ_KEY_STORE}", variable: 'KEYSTORE')]) {
+                        configFileProvider([configFile(fileId: "${env.CONFIG_FILE}", variable: 'MAVEN_SETTINGS')]) {
+                            withSonarQubeEnv(installationName: 'sonar') {
+                                sh 'mvn -s $MAVEN_SETTINGS org.sonarsource.scanner.maven:sonar-maven-plugin:3.7.0.1746:sonar -Dsonar.projectKey="Palisade-Services-${BRANCH_NAME}" -Dsonar.projectName="Palisade-Services-${BRANCH_NAME}" -Dsonar.webhooks.project=$SONARQUBE_WEBHOOK -Djavax.net.ssl.trustStore=$KEYSTORE -Djavax.net.ssl.trustStorePassword=$KEYSTORE_PASS'
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Hadolinting') {
+            dir ('Palisade-services') {
+                container('hadolint') {
+                    sh 'hadolint */Dockerfile'
+                }
+            }
         }
     }
 }
