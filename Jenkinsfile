@@ -41,7 +41,7 @@ spec:
     
   - name: dind-daemon
     image: docker:19.03.1-dind
-    command: ["--host=tcp://0.0.0.0:2375"]
+    command: ["docker:dind dockerd"]
     resources:
       requests:
         cpu: 20m
