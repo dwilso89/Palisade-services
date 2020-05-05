@@ -62,7 +62,6 @@ public class StdPolicyConfiguration implements PolicyConfiguration {
         this.policies = policies;
     }
 
-    @Override
     @Generated
     public boolean equals(final Object o) {
         if (this == o) {
