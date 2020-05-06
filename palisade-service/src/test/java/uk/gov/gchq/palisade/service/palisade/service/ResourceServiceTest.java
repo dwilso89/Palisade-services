@@ -32,11 +32,9 @@ import org.junit.runners.model.FrameworkMethod;
 import org.junit.runners.model.Statement;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
-
 import org.slf4j.LoggerFactory;
 
 import uk.gov.gchq.palisade.RequestId;
-
 import uk.gov.gchq.palisade.resource.LeafResource;
 import uk.gov.gchq.palisade.resource.impl.FileResource;
 import uk.gov.gchq.palisade.resource.request.GetResourcesByIdRequest;
@@ -49,10 +47,10 @@ import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -64,6 +62,8 @@ import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
 public class ResourceServiceTest {
+    @Rule
+    public LogLevelRule logLevelRule = new LogLevelRule();
     private Logger logger;
     private ListAppender<ILoggingEvent> appender;
     private ResourceClient resourceClient = Mockito.mock(ResourceClient.class);
@@ -91,9 +91,6 @@ public class ResourceServiceTest {
         appender.stop();
     }
 
-    @Rule
-    public LogLevelRule logLevelRule = new LogLevelRule();
-
     private List<String> getMessages(final Predicate<ILoggingEvent> predicate) {
         return appender.list.stream()
                 .filter(predicate)
@@ -102,7 +99,7 @@ public class ResourceServiceTest {
     }
 
     @Test
-    @LogLevel(packageToLevel = { "uk.gov.gchq.palisade.service.palisade.service.ResourceService=DEBUG" })
+    @LogLevel(packageToLevel = {"uk.gov.gchq.palisade.service.palisade.service.ResourceService=DEBUG"})
     public void infoOnGetResourcesRequestTest() {
         // Given
         GetResourcesByIdRequest request = new GetResourcesByIdRequest().resourceId("/path/to/bob_file.txt");
@@ -140,13 +137,23 @@ public class ResourceServiceTest {
     }
 
     /**
+     * marks a method to use a different log level for the execution phase
+     */
+    @Target(ElementType.METHOD)
+    @Retention(RetentionPolicy.RUNTIME)
+    @Inherited
+    public @interface LogLevel {
+        String[] packageToLevel();
+    }
+
+    /**
      * a Junit Rule that check for LogLevel annotation on methods and activates the configured log level per package. After
      * the test was executed, restores the previous log level.
      */
-    public class LogLevelRule implements MethodRule {
+    public static class LogLevelRule implements MethodRule {
 
         @Override
-        public Statement apply(Statement base, FrameworkMethod method, Object target) {
+        public Statement apply(final Statement base, final FrameworkMethod method, final Object target) {
 
             return new Statement() {
                 @Override
@@ -155,7 +162,7 @@ public class ResourceServiceTest {
                     // activate log level desired, remember what they were
                     Map<String, Level> existingPackageLogLevel = new HashMap<>();
                     LogLevel logLevelAnnotation = method.getAnnotation(LogLevel.class);
-                    if (logLevelAnnotation != null) {
+                    if (Optional.ofNullable(logLevelAnnotation).isPresent()) {
                         activate(logLevelAnnotation.packageToLevel(), existingPackageLogLevel);
                     }
 
@@ -167,7 +174,7 @@ public class ResourceServiceTest {
                         deactivate(existingPackageLogLevel);
                     }
 
-                    if (testFailure != null) {
+                    if (Optional.ofNullable(testFailure).isPresent()) {
                         throw testFailure;
                     }
                 }
@@ -175,7 +182,7 @@ public class ResourceServiceTest {
                 /**
                  * execute the test safely so that if it fails, we can still revert the log level
                  */
-                private Throwable evaluateSafely(Statement base) {
+                private Throwable evaluateSafely(final Statement base) {
                     try {
                         base.evaluate();
                         return null;
@@ -189,12 +196,10 @@ public class ResourceServiceTest {
         /**
          * activates the log level per package and remember the current setup
          *
-         * @param packageToLevel
-         *            the configuration of the annotation
-         * @param existingPackageLogLevel
-         *            where to store the current information
+         * @param packageToLevel          the configuration of the annotation
+         * @param existingPackageLogLevel where to store the current information
          */
-        protected void activate(String[] packageToLevel, Map<String, Level> existingPackageLogLevel) {
+        protected void activate(final String[] packageToLevel, final Map<String, Level> existingPackageLogLevel) {
             for (String pkgToLevel : packageToLevel) {
                 String[] split = pkgToLevel.split("=");
                 String pkg = split[0];
@@ -209,24 +214,12 @@ public class ResourceServiceTest {
         /**
          * resets the log level of the changes packages back to what it was before
          *
-         * @param existingPackageLogLevel
+         * @param existingPackageLogLevel is the package requiring log level adjustment
          */
-        protected void deactivate(Map<String, Level> existingPackageLogLevel) {
-            for (Map.Entry<String, Level> e : existingPackageLogLevel.entrySet()) {
-                ((Logger) LoggerFactory.getLogger(e.getKey())).setLevel(e.getValue());
-            }
+        protected void deactivate(final Map<String, Level> existingPackageLogLevel) {
+            existingPackageLogLevel.forEach((key, value) -> ((Logger) LoggerFactory.getLogger(key)).setLevel(value));
         }
 
-    }
-
-    /**
-     * marks a method to use a different log level for the execution phase
-     */
-    @Target(ElementType.METHOD)
-    @Retention(RetentionPolicy.RUNTIME)
-    @Inherited
-    public @interface LogLevel {
-        String[] packageToLevel();
     }
 
 }
