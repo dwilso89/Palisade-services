@@ -92,14 +92,14 @@ public class ApplicationConfiguration implements AsyncConfigurer {
     }
 
     @Bean
-    @ConditionalOnProperty(prefix = "population", name = "resource", havingValue = "std", matchIfMissing = true)
+    @ConditionalOnProperty(prefix = "population", name = "resourceProvider", havingValue = "std", matchIfMissing = true)
     @ConfigurationProperties(prefix = "population")
     public StdResourceConfiguration resourceConfiguration() {
         return new StdResourceConfiguration();
     }
 
     @Bean
-    @ConditionalOnProperty(prefix = "population", name = "resource", havingValue = "std", matchIfMissing = true)
+    @ConditionalOnProperty(prefix = "population", name = "resourceProvider", havingValue = "std", matchIfMissing = true)
     public StdResourcePrepopulationFactory resourcePrepopulationFactory() {
         return new StdResourcePrepopulationFactory();
     }
@@ -115,8 +115,8 @@ public class ApplicationConfiguration implements AsyncConfigurer {
     }
 
     @Bean
-    public StreamingResourceServiceProxy resourceServiceProxy(final JpaPersistenceLayer persistenceLayer, final @Qualifier("impl") ResourceService delegate, final ObjectMapper objectMapper) {
-        return new StreamingResourceServiceProxy(persistenceLayer, delegate, objectMapper);
+    public StreamingResourceServiceProxy resourceServiceProxy(final JpaPersistenceLayer persistenceLayer, final @Qualifier("impl") ResourceService delegate, final ObjectMapper objectMapper, final Optional<Supplier<List<Entry<Resource, LeafResource>>>> resourceBuilder) {
+        return new StreamingResourceServiceProxy(persistenceLayer, delegate, objectMapper, resourceBuilder);
     }
 
     @Bean("simpleResourceService")
