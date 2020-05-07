@@ -60,8 +60,8 @@ public class PolicyController {
     private UserConfiguration userConfig;
 
     public PolicyController(final @Qualifier("controller") PolicyService service,
-                            final PolicyConfiguration policyConfig,
-                            final UserConfiguration userConfig) {
+                            final @Qualifier("policyConfiguration") PolicyConfiguration policyConfig,
+                            final @Qualifier("userConfiguration") UserConfiguration userConfig) {
         this.service = service;
         this.setPolicyConfig(policyConfig);
         this.setUserConfig(userConfig);
@@ -142,7 +142,6 @@ public class PolicyController {
         LOGGER.info("Prepopulating using user config: {}", userConfig.getClass());
         policyConfig.getPolicies().stream()
                 .map(prepopulation -> prepopulation.build(userConfig.getUsers()))
-                .peek(entry -> LOGGER.debug(entry.toString()))
                 .forEach(entry -> service.setResourcePolicy(entry.getKey(), entry.getValue()));
     }
 

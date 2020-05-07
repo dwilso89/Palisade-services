@@ -20,6 +20,7 @@ import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.junit4.SpringRunner;
 
@@ -33,7 +34,6 @@ import uk.gov.gchq.palisade.rule.Rules;
 import uk.gov.gchq.palisade.service.palisade.repository.LeafResourceRulesRepository;
 import uk.gov.gchq.palisade.util.ResourceBuilder;
 
-import java.net.URISyntaxException;
 import java.util.AbstractMap.SimpleImmutableEntry;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -42,7 +42,7 @@ import static org.junit.Assert.assertThat;
 
 @RunWith(SpringRunner.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD) //reset db after each test
+@DirtiesContext(classMode = ClassMode.AFTER_EACH_TEST_METHOD) //reset db after each test
 @ActiveProfiles("dbtest")
 public class LeafResourceRulesTest {
 
@@ -64,7 +64,7 @@ public class LeafResourceRulesTest {
     private LeafResourceRulesRepository leafResourceRulesRepository;
 
     @Test
-    public void storeAndRetrieveTest() throws URISyntaxException {
+    public void storeAndRetrieveTest() {
         final FileResource fileResource = (FileResource) ResourceBuilder.create("file:/organisation/dept/team/employee/john");
         final Rule<Employee> rule = new PhoneRule();
         Rules<Employee> resourceRules = new Rules<>();

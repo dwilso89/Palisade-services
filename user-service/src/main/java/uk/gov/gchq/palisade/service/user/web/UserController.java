@@ -63,7 +63,6 @@ public class UserController {
         // Add example users to the user-service cache
         userConfig.getUsers().stream()
                 .map(UserPrepopulationFactory::build)
-                .peek(user -> LOGGER.debug(user.toString()))
                 .forEach(user -> service.addUser(user));
     }
 }

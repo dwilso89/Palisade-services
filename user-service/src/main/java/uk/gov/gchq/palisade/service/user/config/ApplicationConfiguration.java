@@ -20,7 +20,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -46,14 +45,13 @@ public class ApplicationConfiguration implements AsyncConfigurer {
     private static final Logger LOGGER = LoggerFactory.getLogger(ApplicationConfiguration.class);
 
     @Bean
-    @ConditionalOnProperty(prefix = "population", name = "user", havingValue = "std", matchIfMissing = true)
-    @ConfigurationProperties(prefix = "population")
+    @ConditionalOnProperty(prefix = "population", name = "user", havingValue = "std")
     public StdUserConfiguration userConfiguration() {
         return new StdUserConfiguration();
     }
 
     @Bean
-    @ConditionalOnProperty(prefix = "population", name = "user", havingValue = "std", matchIfMissing = true)
+    @ConditionalOnProperty(prefix = "population", name = "user", havingValue = "std")
     public StdUserPrepopulationFactory userPrepopulationFactory() {
         return new StdUserPrepopulationFactory();
     }
